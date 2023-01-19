@@ -4,12 +4,12 @@
 unsigned int xorshift32_state = 123;
 unsigned int xorshift32()
 {
-	/* Algorithm "xor" from p. 4 of Marsaglia, "Xorshift RNGs" */
-	unsigned int x = xorshift32_state;
-	x ^= x << 13;
-	x ^= x >> 17;
-	x ^= x << 5;
-	return xorshift32_state = x;
+    /* Algorithm "xor" from p. 4 of Marsaglia, "Xorshift RNGs" */
+    unsigned int x = xorshift32_state;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    return xorshift32_state = x;
 }
 
 typedef enum {unvisited, wall, visited} Cell;
@@ -93,12 +93,71 @@ void maze_print_cli(Maze *m) {
         for (int x = 0; x < m->width; ++x) {
             switch (maze_cell_get(m, x, y)) {
                 case visited: putchar('`'); break;
-                case wall:    putchar('#'); break;
+                case wall:    putchar('%'); break;
                 default:      putchar('&');
             }
         }
         putchar('\n');
     }
+}
+
+int maze_path_find(Maze *m, int x, int y, int a, int b) {
+    if (x < 0          || y < 0           ||
+        x >= m->width  || y >= m->height  ||
+        a < 0          || b < 0           ||
+        a >= m->width  || b >= m->height  ||
+        maze_cell_get(m, x, y) != visited || 
+        maze_cell_get(m, a, b) != visited) {
+        return -1;
+    }
+    int distance[MAX_MAZE_SIZE];
+    for (int i = 0; i < MAX_MAZE_SIZE; ++i) {
+        distance[i] = -1;
+    }
+    
+    int count = 1;
+    int stack[MAX_MAZE_SIZE];
+
+    stack[0] = x + m->width * y;
+    distance[stack[0]] = 0;
+    
+    for (int iter = 0; 0 < count && count < MAX_MAZE_SIZE-100 && iter < 10000; ++iter) {
+        int i = stack[--count];
+        int d = ++distance[i];
+        
+        int x = i % m->width;
+        int y = i / m->width;
+        // if neighbouring cells have no distance recorded and inside the maze
+        // record the distance and add to the stack for later exploring its neignbour  
+        if (x     > 0        ) {int j = i - 1;        if (distance[j] < 0 && m->cells[j] == visited) {distance[j] = d; stack[count++] = j; }}
+        if (x + 1 < m->width ) {int j = i + 1;        if (distance[j] < 0 && m->cells[j] == visited) {distance[j] = d; stack[count++] = j; }}
+        if (y     > 0        ) {int j = i - m->width; if (distance[j] < 0 && m->cells[j] == visited) {distance[j] = d; stack[count++] = j; }}
+        if (y + 1 < m->height) {int j = i + m->width; if (distance[j] < 0 && m->cells[j] == visited) {distance[j] = d; stack[count++] = j; }}
+    }
+
+    int i = a + m->width * b;
+    int d = distance[i];
+
+    Maze path;
+    path.width = m->width;
+    path.height = m->height;
+    maze_fill_with(&path, unvisited);
+    
+    for (int iter = 0; d > 1 && iter < 10000; ++iter) {
+        int x = i % m->width;
+        int y = i / m->width;
+        maze_cell_set(&path, x, y, visited);
+        // if neighbourings has shorter distance 
+        // move there temporary
+        int tmp = i;
+        if (x     > 0        ) {int j = i - 1;        if (distance[j] < d && m->cells[j] == visited) {d = distance[i - 1];        tmp = j; }}
+        if (x + 1 < m->width ) {int j = i + 1;        if (distance[j] < d && m->cells[j] == visited) {d = distance[i + 1];        tmp = j; }}
+        if (y     > 0        ) {int j = i - m->width; if (distance[j] < d && m->cells[j] == visited) {d = distance[i - m->width]; tmp = j; }}
+        if (y + 1 < m->height) {int j = i + m->width; if (distance[j] < d && m->cells[j] == visited) {d = distance[i + m->width]; tmp = j; }}
+        i = tmp;
+    }
+    maze_cell_set(&path, i % m->width, i / m->width, visited);
+    maze_print_cli(&path);
 }
 
 int main() {
@@ -109,6 +168,10 @@ int main() {
     maze_fill_with(&maze, unvisited);
     maze_generation(&maze);
     maze_print_cli(&maze);
+
+    printf("\n");
+
+    maze_path_find(&maze, 0, 0, 31, 15);
 
     printf("done\n");
 
